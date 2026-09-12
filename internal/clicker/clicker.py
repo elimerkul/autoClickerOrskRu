@@ -7,6 +7,7 @@ from fake_useragent import UserAgent
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 class Clicker:
@@ -80,96 +81,122 @@ class Clicker:
         for i in range(self.cfg.clicker.click_attempt):
             time.sleep(self.cfg.clicker.click_sleep)
             try:
+                self.driver.execute_script(
+                    "arguments[0].scrollIntoView({block:'center'});", btn)
                 btn.click()
                 self.logger.info('ok')
             except Exception as _:
-                self.logger.info('error up')
-                continue
+                try:
+                    self.driver.execute_script("arguments[0].click();", btn)
+                    self.logger.info('ok')
+                except Exception as _:
+                    self.logger.info('error up')
+                    continue
 
             return True
 
         return False
 
+    def wait_control_buttons(self, timeout: int = 15) -> bool:
+        try:
+            WebDriverWait(self.driver, timeout).until(
+                lambda d: d.find_elements(
+                    By.CSS_SELECTOR, "div.control-button[data-key]")
+            )
+            return True
+        except Exception:
+            n = len(self.driver.find_elements(
+                By.CSS_SELECTOR, "div.control-button[data-key]"))
+            self.logger.warning(f"control buttons not ready, found={n}")
+            return False
+
     def up_ad(self, n_page: int, color_green: bool,
               cat_top: bool = False) -> bool:
-        category = self.cfg.clicker.category
-        category_count = [0] * len(category)
+        categories = list(self.cfg.clicker.category)
+        category_count = {cat: 0 for cat in categories}
 
         url = self.cfg.clicker.url
-        for cat_id, cat in enumerate(category[::-1]):
-            self.logger.info(f"start up category {cat}")
-            for i in range(n_page, 0, -1):
-                pages_url = f'{url}%2Findex&page={i}&per-page=100'
+        for i in range(n_page, 0, -1):
+            pages_url = f'{url}%2Findex&page={i}&per-page=100'
 
-                if not self.driver_get(pages_url):
-                    self.logger.warning(f"error driver get on {pages_url}")
-                    return False
+            if not self.driver_get(pages_url):
+                self.logger.warning(f"error driver get on {pages_url}")
+                return False
 
-                items = self.driver.find_elements(By.CLASS_NAME, "item")
-                self.logger.info(
-                    f"category={cat} page={i}/{n_page} ads={len(items)}"
-                )
+            self.wait_control_buttons()
 
-                for j, item in enumerate(reversed(items)):
-                    try:
-                        control_btns = item.find_elements(By.CLASS_NAME,
-                                                          "control-button")
-                        if not control_btns:
-                            continue
+            items = self.driver.find_elements(
+                By.CSS_SELECTOR, ".container-items > .item[data-key]")
+            controls = {
+                el.get_attribute("data-key"): el
+                for el in self.driver.find_elements(
+                    By.CSS_SELECTOR, "div.control-button[data-key]")
+            }
+            self.logger.info(
+                f"page={i}/{n_page} ads={len(items)} controls={len(controls)}"
+            )
 
-                        glyphs = control_btns[0].find_elements(
-                            By.CLASS_NAME, "glyphicon")
-                        if not glyphs:
-                            continue
-                        status = glyphs[0].get_attribute('title')
-
-                        category_item = item.find_elements(By.CLASS_NAME,
-                                                           'item_category')
-                        if not category_item:
-                            continue
-                        category_item_name = category_item[0].text. \
-                            split(' / ')[-1]
-
-                        if cat not in category_item_name:
-                            continue
-
-                        color = item.get_attribute('class') or ''
-
-                        color_in = 'ads-partner' in color
-                        if not color_green:
-                            color_in = not color_in
-
-                        if not color_in:
-                            continue
-
-                        if status == 'Показано' and \
-                                (not cat_top or
-                                 category_count[cat_id] <
-                                 self.cfg.clicker.n_category_top):
-
-                            btn = control_btns[0]. \
-                                find_element(By.CLASS_NAME, "content-up"). \
-                                find_element(By.CLASS_NAME, "glyphicon")
-
-                            prices = item.find_elements(By.CLASS_NAME,
-                                                        'price')
-                            price = prices[0].text if prices else ''
-
-                            msg = f"n={str(j)}," \
-                                  f"category_item_name={category_item_name}," \
-                                  f"status={status}," \
-                                  f"price={price}," \
-                                  f"color={color}"
-
-                            if not self.click_ad(btn, msg):
-                                self.logger.info("fail up")
-
-                            category_count[cat_id] += 1
-                    except Exception as e:
-                        self.logger.warning(e)
+            for j, item in enumerate(reversed(items)):
+                try:
+                    ad_id = item.get_attribute("data-key")
+                    control = controls.get(ad_id)
+                    if control is None:
+                        self.logger.warning(
+                            f"no control-button for ad {ad_id}")
                         continue
 
-                time.sleep(self.cfg.clicker.page_sleep)
+                    state_icons = control.find_elements(
+                        By.CSS_SELECTOR, ".content-state .glyphicon")
+                    if not state_icons:
+                        continue
+                    status = (state_icons[0].get_attribute("title") or
+                              "").strip()
+
+                    category_item = item.find_elements(By.CLASS_NAME,
+                                                       "item_category")
+                    if not category_item:
+                        continue
+                    category_item_name = category_item[0].text.split(
+                        " / ")[-1].strip()
+
+                    matched_cat = next(
+                        (cat for cat in reversed(categories)
+                         if cat in category_item_name),
+                        None,
+                    )
+                    if matched_cat is None:
+                        continue
+
+                    color = item.get_attribute("class") or ""
+                    color_in = "ads-partner" in color
+                    if not color_green:
+                        color_in = not color_in
+                    if not color_in:
+                        continue
+
+                    if status == "Показано" and (
+                            not cat_top or
+                            category_count[matched_cat] <
+                            self.cfg.clicker.n_category_top):
+                        btn = control.find_element(
+                            By.CSS_SELECTOR, ".content-up span.glyphicon")
+                        prices = item.find_elements(By.CLASS_NAME, "price")
+                        price = prices[0].text if prices else ""
+                        msg = (
+                            f"n={j},id={ad_id},"
+                            f"category_item_name={category_item_name},"
+                            f"status={status},"
+                            f"price={price},"
+                            f"color={color}"
+                        )
+                        if not self.click_ad(btn, msg):
+                            self.logger.info("fail up")
+                        category_count[matched_cat] += 1
+                except Exception as e:
+                    self.logger.warning(e)
+                    continue
+
+            time.sleep(self.cfg.clicker.page_sleep)
         return True
 
     def move_and_get_last_page(self) -> int:

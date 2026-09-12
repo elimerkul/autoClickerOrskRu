@@ -65,6 +65,15 @@ class Clicker:
 
         return False
 
+    @staticmethod
+    def _el_text(el) -> str:
+        return (
+            (el.get_attribute("textContent") or "")
+            or (el.get_attribute("innerText") or "")
+            or el.text
+            or ""
+        ).strip()
+
     def driver_get(self, url) -> bool:
         for i in range(self.cfg.clicker.connect_attempt):
             try:
@@ -133,69 +142,114 @@ class Clicker:
                     By.CSS_SELECTOR, "div.control-button[data-key]")
             }
             self.logger.info(
-                f"page={i}/{n_page} ads={len(items)} controls={len(controls)}"
+                "page=%s/%s ads=%s controls=%s",
+                i, n_page, len(items), len(controls),
             )
+            if items:
+                sample_id = items[0].get_attribute("data-key")
+                sample = controls.get(sample_id)
+                if sample is not None:
+                    self.logger.info(
+                        "sample control html=%s",
+                        (sample.get_attribute("innerHTML") or "")[:400],
+                    )
+
+            skipped = {
+                "no_control": 0,
+                "no_status": 0,
+                "no_category": 0,
+                "color": 0,
+                "status": 0,
+            }
+            raised = 0
 
             for j, item in enumerate(reversed(items)):
                 try:
                     ad_id = item.get_attribute("data-key")
                     control = controls.get(ad_id)
                     if control is None:
-                        self.logger.warning(
-                            f"no control-button for ad {ad_id}")
+                        skipped["no_control"] += 1
                         continue
 
                     state_icons = control.find_elements(
-                        By.CSS_SELECTOR, ".content-state .glyphicon")
-                    if not state_icons:
+                        By.XPATH,
+                        ".//*[contains(@class,'content-state')]"
+                        "//*[contains(@class,'glyphicon')]",
+                    )
+                    status = ""
+                    if state_icons:
+                        status = (
+                            state_icons[0].get_attribute("title") or ""
+                        ).strip()
+                    if not status:
+                        skipped["no_status"] += 1
                         continue
-                    status = (state_icons[0].get_attribute("title") or
-                              "").strip()
 
-                    category_item = item.find_elements(By.CLASS_NAME,
-                                                       "item_category")
-                    if not category_item:
-                        continue
-                    category_item_name = category_item[0].text.split(
-                        " / ")[-1].strip()
-
+                    category_item = item.find_elements(
+                        By.XPATH, ".//*[contains(@class,'item_category')]")
+                    category_text = " ".join(
+                        self._el_text(el) for el in category_item)
+                    if not category_text:
+                        category_text = self._el_text(item)
                     matched_cat = next(
                         (cat for cat in reversed(categories)
-                         if cat in category_item_name),
+                         if cat in category_text),
                         None,
                     )
                     if matched_cat is None:
+                        skipped["no_category"] += 1
+                        self.logger.info(
+                            "skip id=%s category=%r", ad_id, category_text)
                         continue
 
                     color = item.get_attribute("class") or ""
-                    color_in = "ads-partner" in color
-                    if not color_green:
-                        color_in = not color_in
-                    if not color_in:
+                    is_green = "ads-partner" in color
+                    if color_green != is_green:
+                        skipped["color"] += 1
                         continue
 
-                    if status == "Показано" and (
-                            not cat_top or
-                            category_count[matched_cat] <
-                            self.cfg.clicker.n_category_top):
-                        btn = control.find_element(
-                            By.CSS_SELECTOR, ".content-up span.glyphicon")
-                        prices = item.find_elements(By.CLASS_NAME, "price")
-                        price = prices[0].text if prices else ""
-                        msg = (
-                            f"n={j},id={ad_id},"
-                            f"category_item_name={category_item_name},"
-                            f"status={status},"
-                            f"price={price},"
-                            f"color={color}"
-                        )
-                        if not self.click_ad(btn, msg):
-                            self.logger.info("fail up")
-                        category_count[matched_cat] += 1
+                    if "Показано" not in status:
+                        skipped["status"] += 1
+                        self.logger.info(
+                            "skip id=%s status=%r", ad_id, status)
+                        continue
+
+                    if cat_top and category_count[matched_cat] >= \
+                            self.cfg.clicker.n_category_top:
+                        continue
+
+                    ups = control.find_elements(
+                        By.XPATH,
+                        ".//*[contains(@class,'content-up')]"
+                        "//*[contains(@class,'glyphicon')]",
+                    )
+                    if not ups:
+                        skipped["no_status"] += 1
+                        continue
+
+                    prices = item.find_elements(
+                        By.XPATH, ".//*[contains(@class,'price')]")
+                    price = self._el_text(prices[0]) if prices else ""
+                    msg = (
+                        f"n={j},id={ad_id},"
+                        f"category={matched_cat},"
+                        f"status={status},"
+                        f"price={price},"
+                        f"color={color}"
+                    )
+                    if not self.click_ad(ups[0], msg):
+                        self.logger.info("fail up")
+                    else:
+                        raised += 1
+                    category_count[matched_cat] += 1
                 except Exception as e:
                     self.logger.warning(e)
                     continue
 
+            self.logger.info(
+                "page=%s/%s raised=%s skipped=%s",
+                i, n_page, raised, skipped,
+            )
             time.sleep(self.cfg.clicker.page_sleep)
         return True
 

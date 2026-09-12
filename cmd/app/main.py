@@ -72,4 +72,5 @@ if __name__ == '__main__':
         clicker.start_up_ad(up="white")
         ratio_white_green_time = (ratio_white_green_time + 1) % \
                                  config.clicker.ratio_white_green_time
+        logger.info("loop sleep %ss", config.clicker.loop_time)
         time.sleep(config.clicker.loop_time)

@@ -105,44 +105,55 @@ class Clicker:
                     self.logger.warning(f"error driver get on {pages_url}")
                     return False
 
-                control_btns = self.driver.find_elements(By.CLASS_NAME,
-                                                         "control-button")[:]
-                items = self.driver.find_elements(By.CLASS_NAME, "item")[:]
+                items = self.driver.find_elements(By.CLASS_NAME, "item")
+                self.logger.info(
+                    f"category={cat} page={i}/{n_page} ads={len(items)}"
+                )
 
-                for j in range(len(control_btns) - 1, -1, -1):
-                    status = control_btns[j]. \
-                        find_element(By.CLASS_NAME, "glyphicon"). \
-                        get_attribute('title')
+                for j, item in enumerate(reversed(items)):
+                    try:
+                        control_btns = item.find_elements(By.CLASS_NAME,
+                                                          "control-button")
+                        if not control_btns:
+                            continue
 
-                    category_item = items[j].find_elements(By.CLASS_NAME,
+                        glyphs = control_btns[0].find_elements(
+                            By.CLASS_NAME, "glyphicon")
+                        if not glyphs:
+                            continue
+                        status = glyphs[0].get_attribute('title')
+
+                        category_item = item.find_elements(By.CLASS_NAME,
                                                            'item_category')
-                    category_item_name = category_item[0].text. \
-                        split(' / ')[-1]
+                        if not category_item:
+                            continue
+                        category_item_name = category_item[0].text. \
+                            split(' / ')[-1]
 
-                    if (cat not in category_item_name):
-                        continue
+                        if cat not in category_item_name:
+                            continue
 
-                    color = items[j].get_attribute('class')
+                        color = item.get_attribute('class') or ''
 
-                    color_in = 'ads-partner' in color
-                    if not color_green:
-                        color_in = not color_in
+                        color_in = 'ads-partner' in color
+                        if not color_green:
+                            color_in = not color_in
 
-                    if not color_in:
-                        continue
+                        if not color_in:
+                            continue
 
-                    if status == 'Показано' and \
-                            (not cat_top or
-                             category_count[cat_id] <
-                             self.cfg.clicker.n_category_top):
+                        if status == 'Показано' and \
+                                (not cat_top or
+                                 category_count[cat_id] <
+                                 self.cfg.clicker.n_category_top):
 
-                        try:
-                            btn = control_btns[j]. \
+                            btn = control_btns[0]. \
                                 find_element(By.CLASS_NAME, "content-up"). \
                                 find_element(By.CLASS_NAME, "glyphicon")
 
-                            price = items[j].find_elements(By.CLASS_NAME,
-                                                           'price')[0].text
+                            prices = item.find_elements(By.CLASS_NAME,
+                                                        'price')
+                            price = prices[0].text if prices else ''
 
                             msg = f"n={str(j)}," \
                                   f"category_item_name={category_item_name}," \
@@ -152,10 +163,11 @@ class Clicker:
 
                             if not self.click_ad(btn, msg):
                                 self.logger.info("fail up")
-                        except Exception as e:
-                            self.logger.warning(e)
 
-                        category_count[cat_id] += 1
+                            category_count[cat_id] += 1
+                    except Exception as e:
+                        self.logger.warning(e)
+                        continue
 
                 time.sleep(self.cfg.clicker.page_sleep)
         return True
@@ -200,6 +212,7 @@ class Clicker:
             time.sleep(3)
 
             n_page = self.move_and_get_last_page()
+            self.logger.info(f"n_page={n_page} up={up}")
 
             if up in ["all", "green"]:
                 self.logger.info('starting to mark green ads')
@@ -214,7 +227,7 @@ class Clicker:
                     return
 
         except Exception as ex:
-            self.logger.warning(ex)
+            self.logger.warning("start_up_ad failed: %s", ex, exc_info=True)
         finally:
             self.driver.close()
             self.driver.quit()

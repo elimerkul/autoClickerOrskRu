@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Secrets and environments
+.env
+.envrc
+.venv/
+venv/
+cookies
+
+# IDE / editor
+.idea/
+*.swp
+*.swo
+
+# App data and logs
+data/
+*.log
+geckodriver.log
+docker/
+
+# OS
+.DS_Store

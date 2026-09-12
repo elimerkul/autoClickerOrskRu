@@ -1,0 +1,26 @@
+driver:
+  binary_location: '/usr/bin/google-chrome'
+  path: '/usr/bin/chromedriver'
+  #path: './data/driver/chromedriver/chromedriver.exe'
+clicker:
+  url: 'https://board.orsk.ru/index.php?r=account'
+  category: [ 'Земельный участок', 'Комната', 'Дом', 'Квартира', 'Гараж', 'Нежилое помещение', 'Сад', 'Вакансии', 'Квартиры, гаражи, дома', 'Коммерческая', 'Сожители', 'Разное' ]
+  loop_time: 1800
+  ratio_white_green_time: 2
+  start_time:
+    hour: 5
+    minute: 0
+    second: 0
+  end_time:
+    hour: 20
+    minute: 0
+    second: 0
+  connect_attempt: 3
+  auth_attempt: 2
+  click_attempt: 3
+  click_sleep: 0.5
+  page_sleep: 3
+  n_category_top: 15
+  category_top: False
+  price_sort: True
+state: 'prod'

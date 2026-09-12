@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "autoclickfororskru"
+version = "0.1.0"
+description = "autoclicker"
+authors = ["Ilya Merkulov <merkuloviv@my.msu.ru>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+omegaconf = "^2.3.0"
+fake-useragent = "^2.0.3"
+selenium = "^4.27.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

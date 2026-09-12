@@ -1,0 +1,15 @@
+services:
+  clicker:
+    build: .
+    restart: unless-stopped
+    init: true
+    shm_size: "2gb"
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Yekaterinburg
+      AUTH_LOGIN: ${AUTH_LOGIN:?AUTH_LOGIN is required}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:?AUTH_PASSWORD is required}
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data

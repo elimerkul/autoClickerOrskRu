@@ -31,12 +31,21 @@ def load_dotenv(path: str = ".env") -> None:
         os.environ.setdefault(key, value)
 
 
+LOG_PATH = Path("./data/log/clicker_log.log")
+
+
 if __name__ == '__main__':
     load_dotenv()
 
-    logging.basicConfig(filename='./data/log/clicker_log.log',
-                        level=logging.INFO,
-                        filemode="w")
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_PATH, mode="w"),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
 
     # load config
     config = OmegaConf.load(CONFIG_PATH)

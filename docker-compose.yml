@@ -13,4 +13,4 @@ services:
       AUTH_PASSWORD: ${AUTH_PASSWORD:?AUTH_PASSWORD is required}
     volumes:
       - ./config:/app/config:ro
-      - ./data:/app/data
+      - ./data/log:/app/data/log

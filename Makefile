@@ -8,11 +8,12 @@ test:
 run:
 	poetry run python cmd/app/main.py
 
-docker-build:
-	docker compose build
+docker-pull:
+	docker compose pull
 
 docker-up:
-	docker compose up -d --build
+	docker compose pull
+	docker compose up -d
 
 docker-down:
 	docker compose down

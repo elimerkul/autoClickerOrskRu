@@ -1,6 +1,7 @@
 services:
   clicker:
-    build: .
+    image: ghcr.io/elimerkul/autoclickerorskru:latest
+    pull_policy: always
     restart: unless-stopped
     init: true
     shm_size: "2gb"
